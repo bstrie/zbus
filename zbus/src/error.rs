@@ -55,6 +55,8 @@ pub enum Error {
     InvalidWellKnownName(String),
     /// Invalid unique bus name.
     InvalidUniqueName(String),
+    /// Invalid interface name.
+    InvalidInterfaceName(String),
     /// Missing body signature in the message.
     NoBodySignature,
     /// Unmatching/bad body signature in the message.
@@ -84,6 +86,7 @@ impl PartialEq for Error {
             (Self::InvalidBusName(_, _), Self::InvalidBusName(_, _)) => true,
             (Self::InvalidWellKnownName(_), Self::InvalidWellKnownName(_)) => true,
             (Self::InvalidUniqueName(_), Self::InvalidUniqueName(_)) => true,
+            (Self::InvalidInterfaceName(_), Self::InvalidInterfaceName(_)) => true,
             (Self::Variant(s), Self::Variant(o)) => s == o,
             (Self::Infallible, Self::Infallible) => true,
             (Error::Io(_), Self::Io(_)) => false,
@@ -116,6 +119,7 @@ impl error::Error for Error {
             Error::InvalidBusName(_, _) => None,
             Error::InvalidWellKnownName(_) => None,
             Error::InvalidUniqueName(_) => None,
+            Error::InvalidInterfaceName(_) => None,
             Error::NoBodySignature => None,
             Error::InvalidField => None,
             Error::MissingField => None,
@@ -162,6 +166,7 @@ impl fmt::Display for Error {
             }
             Error::InvalidWellKnownName(s) => write!(f, "Invalid well-known bus name: {}", s),
             Error::InvalidUniqueName(s) => write!(f, "Invalid unique bus name: {}", s),
+            Error::InvalidInterfaceName(s) => write!(f, "Invalid interface name: {}", s),
             Error::NoBodySignature => write!(f, "missing body signature in the message"),
             Error::UnmatchedBodySignature => write!(f, "unmatched body signature"),
         }
