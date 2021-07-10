@@ -42,6 +42,8 @@ pub enum Error {
     Infallible,
     /// Invalid well-known bus name.
     InvalidWellKnownName(String),
+    /// Invalid unique bus name.
+    InvalidUniqueName(String),
 }
 
 assert_impl_all!(Error: Send, Sync, Unpin);
@@ -73,6 +75,7 @@ impl error::Error for Error {
             Error::SerdeXml(e) => Some(e),
             Error::Infallible => None,
             Error::InvalidWellKnownName(_) => None,
+            Error::InvalidUniqueName(_) => None,
         }
     }
 }
@@ -100,6 +103,7 @@ impl fmt::Display for Error {
             Error::SerdeXml(e) => write!(f, "XML error: {}", e),
             Error::Infallible => write!(f, "Infallible conversion failed"),
             Error::InvalidWellKnownName(s) => write!(f, "Invalid well-known bus name: {}", s),
+            Error::InvalidUniqueName(s) => write!(f, "Invalid unique bus name: {}", s),
         }
     }
 }
