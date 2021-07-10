@@ -40,6 +40,8 @@ pub enum Error {
     /// Only exists to allow `TryFrom<T> for T` conversions. You should never actually be getting
     /// this error from any API.
     Infallible,
+    /// Invalid well-known bus name.
+    InvalidWellKnownName(String),
 }
 
 assert_impl_all!(Error: Send, Sync, Unpin);
@@ -70,6 +72,7 @@ impl error::Error for Error {
             #[cfg(feature = "xml")]
             Error::SerdeXml(e) => Some(e),
             Error::Infallible => None,
+            Error::InvalidWellKnownName(_) => None,
         }
     }
 }
@@ -96,6 +99,7 @@ impl fmt::Display for Error {
             #[cfg(feature = "xml")]
             Error::SerdeXml(e) => write!(f, "XML error: {}", e),
             Error::Infallible => write!(f, "Infallible conversion failed"),
+            Error::InvalidWellKnownName(s) => write!(f, "Invalid well-known bus name: {}", s),
         }
     }
 }
