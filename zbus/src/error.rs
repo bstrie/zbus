@@ -40,6 +40,9 @@ pub enum Error {
     /// Only exists to allow `TryFrom<T> for T` conversions. You should never actually be getting
     /// this error from any API.
     Infallible,
+    /// Invalid bus name. The strings describe why the bus name is neither a valid unique nor
+    /// well-known name, respectively.
+    InvalidBusName(String, String),
     /// Invalid well-known bus name.
     InvalidWellKnownName(String),
     /// Invalid unique bus name.
@@ -74,6 +77,7 @@ impl error::Error for Error {
             #[cfg(feature = "xml")]
             Error::SerdeXml(e) => Some(e),
             Error::Infallible => None,
+            Error::InvalidBusName(_, _) => None,
             Error::InvalidWellKnownName(_) => None,
             Error::InvalidUniqueName(_) => None,
         }
@@ -102,6 +106,13 @@ impl fmt::Display for Error {
             #[cfg(feature = "xml")]
             Error::SerdeXml(e) => write!(f, "XML error: {}", e),
             Error::Infallible => write!(f, "Infallible conversion failed"),
+            Error::InvalidBusName(unique_err, well_known_err) => {
+                write!(
+                    f,
+                    "Neither a valid unique ({}) nor a well-known ({}) bus name",
+                    unique_err, well_known_err
+                )
+            }
             Error::InvalidWellKnownName(s) => write!(f, "Invalid well-known bus name: {}", s),
             Error::InvalidUniqueName(s) => write!(f, "Invalid unique bus name: {}", s),
         }
