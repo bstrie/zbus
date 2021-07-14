@@ -9,7 +9,7 @@ use zvariant::{ObjectPath, OwnedValue, Value};
 
 use crate::{
     azync::{self, PropertyChangedHandlerId, SignalHandlerId},
-    Connection, Error, Message, Result,
+    BusName, Connection, Error, Message, OwnedUniqueName, Result,
 };
 
 use crate::fdo;
@@ -114,7 +114,7 @@ impl<'a> Proxy<'a> {
     }
 
     /// Get a reference to the destination service name.
-    pub fn destination(&self) -> &str {
+    pub fn destination(&self) -> &BusName<'_> {
         self.azync.destination()
     }
 
@@ -303,7 +303,7 @@ impl<'a> Proxy<'a> {
         self.azync
     }
 
-    pub(crate) fn destination_unique_name(&self) -> Result<&str> {
+    pub(crate) fn destination_unique_name(&self) -> Result<&OwnedUniqueName> {
         block_on(self.azync.destination_unique_name())
     }
 }
@@ -325,10 +325,13 @@ impl<'a> From<azync::Proxy<'a>> for Proxy<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{BusName, UniqueName};
+
     use super::*;
     use ntest::timeout;
     use std::sync::atomic::{AtomicBool, Ordering};
     use test_env_log::test;
+    use zvariant::Optional;
 
     #[test]
     #[timeout(1000)]
@@ -346,12 +349,16 @@ mod tests {
             let signaled = owner_change_signaled.clone();
             proxy
                 .connect_signal("NameOwnerChanged", move |m| {
-                    let (name, _, new_owner) = m.body::<(&str, &str, &str)>()?;
+                    let (name, _, new_owner) = m.body::<(
+                        BusName<'_>,
+                        Optional<UniqueName<'_>>,
+                        Optional<UniqueName<'_>>,
+                    )>()?;
                     if name != well_known {
                         // Meant for the other testcase then
                         return Ok(());
                     }
-                    assert_eq!(new_owner, unique_name);
+                    assert_eq!(*new_owner.as_ref().unwrap(), *unique_name);
                     signaled.store(true, Ordering::Release);
 
                     Ok(())
@@ -375,7 +382,10 @@ mod tests {
 
         fdo::DBusProxy::new(&conn)
             .unwrap()
-            .request_name(well_known, fdo::RequestNameFlags::ReplaceExisting.into())
+            .request_name(
+                well_known.try_into().unwrap(),
+                fdo::RequestNameFlags::ReplaceExisting.into(),
+            )
             .unwrap();
 
         let h = proxy

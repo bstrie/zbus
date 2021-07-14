@@ -13,7 +13,7 @@ use zvariant::ObjectPath;
 
 use async_io::block_on;
 
-use crate::{azync, Error, Guid, Message, Result};
+use crate::{azync, Error, Guid, Message, OwnedUniqueName, Result};
 
 /// A D-Bus connection.
 ///
@@ -138,7 +138,7 @@ impl Connection {
     }
 
     /// The unique name as assigned by the message bus or `None` if not a message bus connection.
-    pub fn unique_name(&self) -> Option<&str> {
+    pub fn unique_name(&self) -> Option<&OwnedUniqueName> {
         self.inner.unique_name()
     }
 
