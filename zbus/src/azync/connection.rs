@@ -36,12 +36,7 @@ use futures_util::{
     stream::StreamExt,
 };
 
-use crate::{
-    azync::Authenticated,
-    fdo,
-    raw::{Connection as RawConnection, Socket},
-    BusName, Error, Guid, Message, MessageType, OwnedUniqueName, Result,
-};
+use crate::{BusName, Error, Guid, InterfaceName, Message, MessageType, OwnedUniqueName, Result, azync::Authenticated, fdo, raw::{Connection as RawConnection, Socket}};
 
 const DEFAULT_MAX_QUEUED: usize = 64;
 
@@ -54,24 +49,25 @@ const FDO_DBUS_MATCH_RULE_EXCEMPT_SIGNALS: [&str; 2] = ["NameAcquired", "NameLos
 struct SignalInfo<'s> {
     sender: BusName<'s>,
     path: ObjectPath<'s>,
-    interface: &'s str,
+    interface: InterfaceName<'s>,
     signal_name: &'s str,
 }
 
 impl<'s> SignalInfo<'s> {
-    fn new<E>(
+    fn new<PE, IE>(
         sender: BusName<'s>,
-        path: impl TryInto<ObjectPath<'s>, Error = E>,
-        interface: &'s str,
+        path: impl TryInto<ObjectPath<'s>, Error = PE>,
+        interface: impl TryInto<InterfaceName<'s>, Error = IE>,
         signal_name: &'s str,
     ) -> Result<Self>
     where
-        E: Into<Error>,
+        PE: Into<Error>,
+        IE: Into<Error>,
     {
         Ok(Self {
             sender,
             path: path.try_into().map_err(Into::into)?,
-            interface,
+            interface: interface.try_into().map_err(Into::into)?,
             signal_name,
         })
     }
@@ -386,11 +382,11 @@ impl Connection {
     ///
     /// On successful reply, an `Ok(Message)` is returned. On error, an `Err` is returned. D-Bus
     /// error replies are returned as [`Error::MethodError`].
-    pub async fn call_method<B, DE, PE>(
+    pub async fn call_method<B, DE, PE, IE>(
         &self,
         destination: Option<impl TryInto<BusName<'_>, Error = DE>>,
         path: impl TryInto<ObjectPath<'_>, Error = PE>,
-        interface: Option<&str>,
+        interface: Option<impl TryInto<InterfaceName<'_>, Error = IE>>,
         method_name: &str,
         body: &B,
     ) -> Result<Arc<Message>>
@@ -398,6 +394,7 @@ impl Connection {
         B: serde::ser::Serialize + zvariant::Type,
         DE: Into<Error>,
         PE: Into<Error>,
+        IE: Into<Error>,
     {
         let stream = self.clone();
         let m = Message::method(
@@ -449,11 +446,11 @@ impl Connection {
     /// Emit a signal.
     ///
     /// Create a signal message, and send it over the connection.
-    pub async fn emit_signal<B, DE, PE>(
+    pub async fn emit_signal<B, DE, PE, IE>(
         &self,
         destination: Option<impl TryInto<BusName<'_>, Error = DE>>,
         path: impl TryInto<ObjectPath<'_>, Error = PE>,
-        interface: &str,
+        interface: impl TryInto<InterfaceName<'_>, Error = IE>,
         signal_name: &str,
         body: &B,
     ) -> Result<()>
@@ -461,6 +458,7 @@ impl Connection {
         B: serde::ser::Serialize + zvariant::Type,
         DE: Into<Error>,
         PE: Into<Error>,
+        IE: Into<Error>,
     {
         let m = Message::signal(
             self.unique_name(),

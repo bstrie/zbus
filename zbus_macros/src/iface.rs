@@ -296,8 +296,8 @@ pub fn expand(args: AttributeArgs, mut input: ItemImpl) -> syn::Result<TokenStre
         impl #generics #zbus::Interface for #self_ty
         #where_clause
         {
-            fn name() -> &'static str {
-                #iface_name
+            fn name() -> #zbus::InterfaceName<'static> {
+                #zbus::InterfaceName::from_str_unchecked(#iface_name)
             }
 
             fn get(

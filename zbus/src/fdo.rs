@@ -10,10 +10,7 @@ use static_assertions::assert_impl_all;
 use std::collections::HashMap;
 use zvariant::{derive::Type, ObjectPath, Optional, OwnedObjectPath, OwnedValue, Value};
 
-use crate::{
-    dbus_interface, dbus_proxy, object_server::LOCAL_NODE, BusName, DBusError, OwnedBusName,
-    OwnedUniqueName, UniqueName, WellKnownName,
-};
+use crate::{BusName, DBusError, InterfaceName, OwnedBusName, OwnedInterfaceName, OwnedUniqueName, UniqueName, WellKnownName, dbus_interface, dbus_proxy, object_server::LOCAL_NODE};
 
 /// Proxy for the `org.freedesktop.DBus.Introspectable` interface.
 #[dbus_proxy(interface = "org.freedesktop.DBus.Introspectable", default_path = "/")]
@@ -42,18 +39,18 @@ impl Introspectable {
 #[dbus_proxy(interface = "org.freedesktop.DBus.Properties")]
 trait Properties {
     /// Get a property value.
-    fn get(&self, interface_name: &str, property_name: &str) -> Result<OwnedValue>;
+    fn get(&self, interface_name: InterfaceName<'_>, property_name: &str) -> Result<OwnedValue>;
 
     /// Set a property value.
-    fn set(&self, interface_name: &str, property_name: &str, value: &Value<'_>) -> Result<()>;
+    fn set(&self, interface_name: InterfaceName<'_>, property_name: &str, value: &Value<'_>) -> Result<()>;
 
     /// Get all properties.
-    fn get_all(&self, interface_name: &str) -> Result<HashMap<String, OwnedValue>>;
+    fn get_all(&self, interface_name: InterfaceName<'_>) -> Result<HashMap<String, OwnedValue>>;
 
     #[dbus_proxy(signal)]
     fn properties_changed(
         &self,
-        interface_name: &str,
+        interface_name: InterfaceName<'_>,
         changed_properties: HashMap<&str, Value<'_>>,
         invalidated_properties: Vec<&str>,
     ) -> Result<()>;
@@ -71,7 +68,7 @@ assert_impl_all!(Properties: Send, Sync, Unpin);
 
 #[dbus_interface(name = "org.freedesktop.DBus.Properties")]
 impl Properties {
-    fn get(&self, interface_name: &str, property_name: &str) -> Result<OwnedValue> {
+    fn get(&self, interface_name: InterfaceName<'_>, property_name: &str) -> Result<OwnedValue> {
         LOCAL_NODE.with(|node| {
             let iface = node.get_interface(interface_name).ok_or_else(|| {
                 Error::UnknownInterface(format!("Unknown interface '{}'", interface_name))
@@ -85,7 +82,7 @@ impl Properties {
     }
 
     // TODO: should be able to take a &Value instead (but obscure deserialize error for now..)
-    fn set(&mut self, interface_name: &str, property_name: &str, value: OwnedValue) -> Result<()> {
+    fn set(&mut self, interface_name: InterfaceName<'_>, property_name: &str, value: OwnedValue) -> Result<()> {
         LOCAL_NODE.with(|node| {
             let iface = node.get_interface(interface_name).ok_or_else(|| {
                 Error::UnknownInterface(format!("Unknown interface '{}'", interface_name))
@@ -98,7 +95,7 @@ impl Properties {
         })
     }
 
-    fn get_all(&self, interface_name: &str) -> Result<HashMap<String, OwnedValue>> {
+    fn get_all(&self, interface_name: InterfaceName<'_>) -> Result<HashMap<String, OwnedValue>> {
         LOCAL_NODE.with(|node| {
             let iface = node.get_interface(interface_name).ok_or_else(|| {
                 Error::UnknownInterface(format!("Unknown interface '{}'", interface_name))
@@ -114,7 +111,7 @@ impl Properties {
     #[rustfmt::skip]
     pub fn properties_changed(
         &self,
-        interface_name: &str,
+        interface_name: InterfaceName<'_>,
         changed_properties: &HashMap<&str, &Value<'_>>,
         invalidated_properties: &[&str],
     ) -> zbus::Result<()>;
@@ -430,7 +427,7 @@ trait DBus {
     /// `org.freedesktop.DBus.Introspectable` interfaces are not included in the value of this
     /// property either, because they do not indicate features of the message bus implementation.
     #[dbus_proxy(property)]
-    fn interfaces(&self) -> Result<Vec<String>>;
+    fn interfaces(&self) -> Result<Vec<OwnedInterfaceName>>;
 }
 
 assert_impl_all!(AsyncDBusProxy<'_>: Send, Sync, Unpin);
@@ -629,7 +626,7 @@ mod tests {
 
     #[test]
     fn error_from_zerror() {
-        let m = Message::method(Some(":1.2"), None::<()>, "/", None, "foo", &()).unwrap();
+        let m = Message::method(Some(":1.2"), None::<()>, "/", None::<()>, "foo", &()).unwrap();
         let m = Message::method_error(
             None::<()>,
             &m,

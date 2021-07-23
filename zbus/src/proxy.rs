@@ -7,10 +7,7 @@ use std::{
 };
 use zvariant::{ObjectPath, OwnedValue, Value};
 
-use crate::{
-    azync::{self, PropertyChangedHandlerId, SignalHandlerId},
-    BusName, Connection, Error, Message, OwnedUniqueName, Result,
-};
+use crate::{BusName, Connection, Error, InterfaceName, Message, OwnedUniqueName, Result, azync::{self, PropertyChangedHandlerId, SignalHandlerId}};
 
 use crate::fdo;
 
@@ -124,7 +121,7 @@ impl<'a> Proxy<'a> {
     }
 
     /// Get a reference to the interface.
-    pub fn interface(&self) -> &str {
+    pub fn interface(&self) -> &InterfaceName<'_> {
         self.azync.interface()
     }
 

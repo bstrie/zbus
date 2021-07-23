@@ -16,11 +16,7 @@ use scoped_tls::scoped_thread_local;
 use static_assertions::assert_impl_all;
 use zvariant::{ObjectPath, OwnedObjectPath, OwnedValue, Value};
 
-use crate::{
-    azync, fdo,
-    fdo::{Introspectable, Peer, Properties},
-    Connection, Error, Message, MessageHeader, MessageType, Result, WellKnownName,
-};
+use crate::{Connection, Error, InterfaceName, Message, MessageHeader, MessageType, OwnedInterfaceName, Result, WellKnownName, azync, fdo, fdo::{Introspectable, Peer, Properties}};
 
 scoped_thread_local!(pub(crate) static LOCAL_NODE: Node);
 scoped_thread_local!(static LOCAL_CONNECTION: Connection);
@@ -33,7 +29,7 @@ scoped_thread_local!(static LOCAL_CONNECTION: Connection);
 /// [`dbus_interface`]: attr.dbus_interface.html
 pub trait Interface: Any {
     /// Return the name of the interface. Ex: "org.foo.MyInterface"
-    fn name() -> &'static str
+    fn name() -> InterfaceName<'static>
     where
         Self: Sized;
 
@@ -79,7 +75,7 @@ pub(crate) struct Node {
     path: OwnedObjectPath,
     children: HashMap<String, Node>,
     #[derivative(Debug = "ignore")]
-    interfaces: HashMap<&'static str, Rc<RefCell<dyn Interface>>>,
+    interfaces: HashMap<InterfaceName<'static>, Rc<RefCell<dyn Interface>>>,
 }
 
 impl Node {
@@ -95,12 +91,12 @@ impl Node {
         node
     }
 
-    pub(crate) fn get_interface(&self, iface: &str) -> Option<Rc<RefCell<dyn Interface>>> {
-        self.interfaces.get(iface).cloned()
+    pub(crate) fn get_interface(&self, interface_name: InterfaceName<'_>) -> Option<Rc<RefCell<dyn Interface>>> {
+        self.interfaces.get(&interface_name).cloned()
     }
 
-    fn remove_interface(&mut self, iface: &str) -> bool {
-        self.interfaces.remove(iface).is_some()
+    fn remove_interface(&mut self, interface_name: InterfaceName<'static>) -> bool {
+        self.interfaces.remove(&interface_name).is_some()
     }
 
     fn is_empty(&self) -> bool {
@@ -114,7 +110,7 @@ impl Node {
         self.children.remove(node).is_some()
     }
 
-    fn at<I>(&mut self, name: &'static str, iface: I) -> bool
+    fn at<I>(&mut self, name: InterfaceName<'static>, iface: I) -> bool
     where
         I: Interface,
     {
@@ -133,7 +129,7 @@ impl Node {
     {
         let iface = self
             .interfaces
-            .get(I::name())
+            .get(&I::name())
             .ok_or(Error::InterfaceNotFound)?
             .borrow();
         let iface = iface.downcast_ref::<I>().ok_or(Error::InterfaceNotFound)?;
@@ -186,7 +182,7 @@ impl Node {
     fn emit_signal<B>(
         &self,
         dest: Option<&str>,
-        iface: &str,
+        interface_name: InterfaceName<'_>,
         signal_name: &str,
         body: &B,
     ) -> Result<()>
@@ -197,7 +193,7 @@ impl Node {
             panic!("emit_signal: Connection TLS not set");
         }
 
-        LOCAL_CONNECTION.with(|conn| conn.emit_signal(dest, &self.path, iface, signal_name, body))
+        LOCAL_CONNECTION.with(|conn| conn.emit_signal(dest, &self.path, interface_name, signal_name, body))
     }
 }
 
@@ -485,20 +481,23 @@ impl ObjectServer {
     /// to bring a node into the current context.
     ///
     /// [`dbus_interface`]: attr.dbus_interface.html
-    pub fn local_node_emit_signal<B>(
+    pub fn local_node_emit_signal<'i, I, E, B>(
         destination: Option<&str>,
-        iface: &str,
+        interface_name: I,
         signal_name: &str,
         body: &B,
     ) -> Result<()>
     where
+        I: TryInto<InterfaceName<'i>, Error = E>,
+        E: Into<Error>,
         B: serde::ser::Serialize + zvariant::Type,
     {
         if !LOCAL_NODE.is_set() {
             panic!("emit_signal: Node TLS not set");
         }
 
-        LOCAL_NODE.with(|n| n.emit_signal(destination, iface, signal_name, body))
+        let interface_name = interface_name.try_into().map_err(Into::into)?;
+        LOCAL_NODE.with(|n| n.emit_signal(destination, interface_name, signal_name, body))
     }
 
     fn dispatch_method_call_try(
